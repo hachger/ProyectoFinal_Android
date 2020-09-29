@@ -23,6 +23,10 @@ export class ProgramServService {
     return this.aProgram;
   }
 
+  public GetLine(i: number) {
+    return this.aProgram[i];
+  }
+
   public DeleteLine(line: Program) {
     this.aProgram.splice(this.aProgram.indexOf(line), 1);
     for (let i = 0; i < this.aProgram.length; i++) {
