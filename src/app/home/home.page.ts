@@ -1,7 +1,8 @@
+import { stripSummaryForJitNameSuffix } from '@angular/compiler/src/aot/util';
 import { Component, OnInit } from '@angular/core';
+import { BluetoothSerial } from '@ionic-native/bluetooth-serial/ngx';
 import { AlertController, RouterLinkDelegate } from '@ionic/angular';
-import { create } from 'domain';
-import { interval } from 'rxjs';
+import { stringify } from 'querystring';
 import { Program } from '../Model/Program';
 import { ProgramServService } from '../program-serv.service';
 
@@ -12,9 +13,10 @@ import { ProgramServService } from '../program-serv.service';
 })
 export class HomePage implements OnInit{
   private theProgram: Array<Program>;
-  private totalSeconds: number;
-  private totalSecondsWork: number;
-  private totalSecondsPause: number;
+  private totalSeconds: number = 0;
+  private totalSecondsWork: number = 0;
+  private totalSecondsPause: number = 0;
+  private currentTimeMsgStr: string;
   private totalMin: number;
   private totalSec: number;
   private totalMinWork: number;
@@ -26,12 +28,13 @@ export class HomePage implements OnInit{
   private lineState: number = 0;
   private lineNumber: number = 0;
   private currentLine: Program;
+  private btStatus: number = 0;
   private timerHandle;
+
+  private dispBluetooth;
   
   
-  constructor(private aProgram: ProgramServService, private alertStart: AlertController) {
-    this.totalSeconds = 0;
-    this.lineNumber = 0;
+  constructor(private aProgram: ProgramServService, private alertStart: AlertController, private aBluetooh: BluetoothSerial) {
 
     this.currentLine = new Program();
 
@@ -158,14 +161,24 @@ export class HomePage implements OnInit{
 
   onChangeTime(line: Program) {
     line.timeRoundMin += Math.floor(line.timeRoundSec / 60);
+    if (line.timeRoundMin > 99)
+      line.timeRoundMin = 99;
     line.timeRoundSec = line.timeRoundSec % 60;
     line.timeRounds = line.timeRoundMin * 60 + line.timeRoundSec;
+    if (line.roundsCount > 99)
+      line.roundsCount = 99;
     line.timePauseMin += Math.floor(line.timePauseSec / 60);
+    if (line.timePauseMin > 99)
+      line.timePauseMin = 99;
     line.timePauseSec = line.timePauseSec % 60;
     line.timePause = line.timePauseMin * 60 + line.timePauseSec;
     line.timeMacroPauseMin += Math.floor(line.timeMacroPauseSec / 60);
+    if (line.timeMacroPauseMin > 99)
+      line.timeRoundMin = 99;
     line.timeMacroPauseSec = line.timeMacroPauseSec % 60;
     line.timeMacroPause = line.timeMacroPauseMin * 60 + line.timeMacroPauseSec;
+    if (line.tabataRoundsCount > 99)
+      line.tabataRoundsCount = 99;
     
     this.calcSeconds();
 
@@ -184,7 +197,17 @@ export class HomePage implements OnInit{
       this.currentLine.timePause = this.theProgram[this.lineNumber].timePause;
       this.currentLine.timeMacroPause = this.theProgram[this.lineNumber].timeMacroPause;
       this.currentLine.tabataRoundsCount = this.theProgram[this.lineNumber].tabataRoundsCount;
+
+      this.currentTimeMsgStr = this.TimeMsgToString(this.theProgram[this.lineNumber].timeRounds, this.theProgram[this.lineNumber].roundsCount);
+      if(this.theProgram[this.lineNumber].type == "TABATA")
+        this.currentTimeMsgStr = "w" + this.currentTimeMsgStr;
+      else
+        this.currentTimeMsgStr = "W" + this.currentTimeMsgStr;
+      
+      if (this.btStatus == 2)
+        this.WriteMessage(this.currentTimeMsgStr);
     }
+
 
     this.state = 1;
     this.timerHandle = setInterval(() => {
@@ -262,7 +285,7 @@ export class HomePage implements OnInit{
           this.totalSecondsPause--;
           if (this.lineState == 1) {
             this.theProgram[this.lineNumber].timePause--;
-            if (this.theProgram[this.lineNumber].timePause == 0) {
+              if (this.theProgram[this.lineNumber].timePause == 0) {
               this.lineState = 0;
               this.theProgram[this.lineNumber].timePause = this.currentLine.timePause;
             }
@@ -294,6 +317,10 @@ export class HomePage implements OnInit{
         this.calcSeconds();
         this.lineState = 0;
         this.lineNumber = 0;
+
+        if(this.btStatus == 2)
+          this.WriteMessage("STOP");
+
         clearInterval(this.timerHandle);
       }
 
@@ -315,6 +342,10 @@ export class HomePage implements OnInit{
           this.state = 0;
           this.lineNumber = 0;
           this.calcSeconds();
+
+          if(this.btStatus == 2)
+            this.WriteMessage("STOP");
+
           clearInterval(this.timerHandle);
         }
         else {
@@ -348,6 +379,32 @@ export class HomePage implements OnInit{
       this.totalMinPause = Math.floor(this.totalSecondsPause / 60);
       this.totalSecPause = this.totalSecondsPause % 60;
 
+      if (this.lineState == 0) {
+        this.currentTimeMsgStr = this.TimeMsgToString(this.theProgram[this.lineNumber].timeRounds, this.theProgram[this.lineNumber].roundsCount);
+        if (this.theProgram[this.lineNumber].type == "TABATA")
+          this.currentTimeMsgStr = "w" + this.currentTimeMsgStr;
+        if (this.theProgram[this.lineNumber].type == "ROUND")  
+          this.currentTimeMsgStr = "R" + this.currentTimeMsgStr;
+        if (this.theProgram[this.lineNumber].type == "TIMER")  
+          this.currentTimeMsgStr = "T" + this.currentTimeMsgStr;
+      }
+      if (this.lineState == 1) {
+        this.currentTimeMsgStr = this.TimeMsgToString(this.theProgram[this.lineNumber].timePause, this.theProgram[this.lineNumber].roundsCount);
+        if (this.theProgram[this.lineNumber].type == "TABATA")
+          this.currentTimeMsgStr = "p" + this.currentTimeMsgStr;
+        if (this.theProgram[this.lineNumber].type == "ROUND")  
+          this.currentTimeMsgStr = "r" + this.currentTimeMsgStr;
+        if (this.theProgram[this.lineNumber].type == "PAUSE")  
+          this.currentTimeMsgStr = "P" + this.currentTimeMsgStr;
+      }
+      if (this.lineState == 3) {
+        this.currentTimeMsgStr = this.TimeMsgToString(this.theProgram[this.lineNumber].timeMacroPause, this.theProgram[this.lineNumber].tabataRoundsCount);
+        this.currentTimeMsgStr = "m" + this.currentTimeMsgStr;
+      }
+
+      if (this.btStatus==2 && this.state!=0) 
+        this.WriteMessage(this.currentTimeMsgStr);
+
     }, 1000);
   }
 
@@ -362,6 +419,9 @@ export class HomePage implements OnInit{
   }
 
   onClickStop() {
+    if (this.state == 0)
+      return;
+    
     clearInterval(this.timerHandle);
     this.state = 2;
   }
@@ -396,6 +456,63 @@ export class HomePage implements OnInit{
     this.totalSecondsPause = this.aProgram.GetTotalSecondsPause();
     this.totalMinPause = Math.floor(this.totalSecondsPause / 60);
     this.totalSecPause = this.totalSecondsPause % 60;
+  }
+
+  async onClickDiscover() {
+    this.btStatus = 1;
+    try {
+      let respuesta = await this.aBluetooh.isEnabled();
+      this.dispBluetooth = await this.aBluetooh.list();
+    } catch (e) {
+      this.btStatus = 0;
+      alert(e);
+    }
+
+  }
+
+  onClickConnect(address) {
+    this.btStatus = 0;
+    this.aBluetooh.connect(address).subscribe(res => {
+      alert("Device CONNECTED");
+      this.btStatus = 2;
+    }, error => {
+        alert(error);
+    });
+  }
+
+  onClickWrite() {
+    this.WriteMessage("TEST");
+  }
+
+  WriteMessage(amsg: string) {
+    let msg: string;
+    
+    if (this.btStatus == 2) {
+      msg = "+&DBG" + amsg + "\n";
+      this.aBluetooh.write(msg);
+    }
+    else
+      alert("NO Device Connected");
+  }
+
+  TimeMsgToString(time: number, round: number) {
+    let strTime: string;
+    let strValue: string;
+
+    strValue = Math.floor(time / 60).toString(10);
+    if (strValue.length == 1)
+      strValue = "0" + strValue;
+    strTime = strValue;
+      strValue = (time % 60).toString(10);
+    if (strValue.length == 1)
+      strValue = "0" + strValue;
+    strTime = strTime + strValue;
+    strValue = round.toString(10);
+    if (strValue.length == 1)
+      strValue = "0" + strValue;
+    strTime = strTime + strValue;
+
+    return strTime; 
   }
 
 }

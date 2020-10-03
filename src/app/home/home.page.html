@@ -28,18 +28,23 @@
 
 <ion-footer>
   <ion-toolbar>
+    <ion-item *ngIf="btStatus==1">
+      <div *ngFor="let dBT of dispBluetooth">
+        {{dBT.id}}
+        {{dBT.address}}
+        {{dBT.name}}
+        <ion-button (click)="onClickConnect(dBT.address)">CONNECT</ion-button>
+      </div>
+    </ion-item>
     <ion-item>
-      <ion-button (click)="onClickDiscover()" expand="block" shape="round">
-        DISCOVER
-      </ion-button>
-      <ion-button (click)="onClickConnect()" expand="block" shape="round">
-        CONNECT
-      </ion-button>
+      <ion-button (click)="onClickDiscover()" expand="block" shape="round"  *ngIf="btStatus==0">DISCOVER</ion-button>
+      <ion-button (click)="onClickDiscover()" expand="block" shape="round"  *ngIf="btStatus==2">DISCONNECT</ion-button>
+      <ion-button (click)="onClickWrite()" expand="block" shape="round">WRITE</ion-button>
     </ion-item>
   </ion-toolbar>
 </ion-footer>
 
-<ion-content [fullscreen]="true">
+<ion-content [fullscreen]="true" style="background-color: black;">
   <ion-fab horizontal="end" vertical="top" slot="fixed" edge *ngIf="state==0">
     <ion-fab-button>
       <ion-icon name="add"></ion-icon>
