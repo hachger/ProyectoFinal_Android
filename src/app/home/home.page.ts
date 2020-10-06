@@ -459,14 +459,22 @@ export class HomePage implements OnInit{
   }
 
   async onClickDiscover() {
-    this.btStatus = 1;
-    try {
-      let respuesta = await this.aBluetooh.isEnabled();
-      this.dispBluetooth = await this.aBluetooh.list();
-    } catch (e) {
-      this.btStatus = 0;
-      alert(e);
+    if (this.btStatus == 0) {
+      this.btStatus = 1;
+      try {
+        let respuesta = await this.aBluetooh.isEnabled();
+        this.dispBluetooth = await this.aBluetooh.list();
+      } catch (e) {
+        this.btStatus = 0;
+        alert(e);
+      }
     }
+    else {
+      this.aBluetooh.disconnect();
+      alert("Device DISCONNECTED");
+      this.btStatus = 0;
+    }
+
 
   }
 
@@ -475,6 +483,7 @@ export class HomePage implements OnInit{
     this.aBluetooh.connect(address).subscribe(res => {
       alert("Device CONNECTED");
       this.btStatus = 2;
+      this.ngOnInit();
     }, error => {
         alert(error);
     });
